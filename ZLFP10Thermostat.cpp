@@ -127,15 +127,16 @@ void ZLFP10Thermostat::loop()
 
 {
 
-
     // once a second read temp, 
     // once a minute, and on change in temp, read settings
+
     float oldtemp = getTemp();
+
     delay(1000);
+
     ReadTemp();
-    
-    
-    unsigned long now = millis();
+
+        unsigned long now = millis();
     float temp=getTemp();
     if (oldtemp != temp || now > nextcheck  || nextcheck == 0)
     {
@@ -144,11 +145,12 @@ void ZLFP10Thermostat::loop()
             oldMode=Mode ;
             oldSetTemp= FCUSetTemp;
 
-    
+
             ReadFCUSettings();
             // if on/off, mode or setpoint has changed since last iteration, reset everything
             if(oldOnOff!=Onoff || oldMode!=Mode ||  oldSetTemp!= FCUSetTemp)
             {
+            
               RestartSession();
             }
 
@@ -166,11 +168,14 @@ void ZLFP10Thermostat::loop()
                   targetTemp=FCUSetTemp+newStage;
               }
               DebugStream->println();
+              
               FCUController.SetFanSpeed(newStage, targetTemp);
             }
 
             nextcheck = now +10000; // don't check for 60 seconds unless the temperature chnages
+
         }
+        
         DisplayStatus();
         
     

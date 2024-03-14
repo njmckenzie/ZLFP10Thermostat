@@ -50,12 +50,14 @@ void setup() {
   
   theThermostat.setTempReader(TEMP_READER_PIN);
   theThermostat.setup();
-
+  Serial.println("Setup complete");
 }
 
 void loop()
 {
+  
   theThermostat.loop( );
+  
 }
   
   
