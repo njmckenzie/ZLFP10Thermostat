@@ -1,12 +1,13 @@
+#include <DehumidifyingMultiStageThermostat.h>
 
-#include <MultiStageThermostat.h>
+
 
 #include <ZLFP10Controller.h>
 
 
 
 
-class ZLFP10Thermostat: public MultiStageThermostat
+class ZLFP10Thermostat: public DehumidifyingMultiStageThermostat
 {
 
   Settings settings;
@@ -20,23 +21,20 @@ class ZLFP10Thermostat: public MultiStageThermostat
     short Mode;   // The mode we're in, heat or cool
     short FCUSetTemp; // the temperature setting the FCU is reporting
     
-    int oldStatus;
+
     Stream *DebugStream; // used for debug output, can be serial, LCD, or none
     void RestartSession(); // called when the mode or setpoint changes
     void ReadFCUSettings(); // Get info from the FCUController
-    void BlinkEm(int number, unsigned long duration);
+
 public:
     ZLFP10Thermostat(uint8_t pDHTSensorPin);
-    void setSerial(SoftwareSerial &pswSerial, uint8_t pRS485DEPin,uint8_t pRS485REPin); // assign the softwareserial port used by MODBUS
-    void setTempReader(uint8_t pTempReaderPin); // assign the pin used for the FCU temp reader
+    void setSerial(HardwareSerial &pswSerial, uint8_t pRS485DEPin,uint8_t pRS485REPin); // assign the softwareserial port used by MODBUS
+    void setTempPins(uint8_t pRoomTempPin, uint8_t pCoilTempPin); // assign the pins used for the FCU temp reader
     void setup();
     void DisplayStatus();  // called once per loop
     void loop();
     
     void SetDebugOutput(Stream * pDebug); // set the device for debug output
-    void SetStatus(int newStatus);
-    void Warning(int WarningLevel);
-    void FatalError(int ErrorLevel);
   
 
 };

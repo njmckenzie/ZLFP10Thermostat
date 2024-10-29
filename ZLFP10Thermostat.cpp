@@ -3,25 +3,27 @@
 
 #include "ZLFP10Thermostat.h"
 #include <ZLFP10Controller.h>
+#include <LEDStatusStrip.h>
+#include <DewPoint.h>
 #define STATUSPINCOUNT 4
-#define STATUSBASEPIN 2
-#define SHORT_BLINK 100
-#define LONG_BLINK 500
+#define STATUSBASEPIN 8
 
 
 ModbusMaster node;
 
-ZLFP10Thermostat::ZLFP10Thermostat(uint8_t pDHTSensorPin):MultiStageThermostat(pDHTSensorPin) 
+ZLFP10Thermostat::ZLFP10Thermostat(uint8_t pDHTSensorPin):DehumidifyingMultiStageThermostat(pDHTSensorPin) 
 {
         Mode=MODE_OFF;
+        theLEDStatusStrip.SetPins(STATUSBASEPIN, STATUSPINCOUNT);
 }
-void ZLFP10Thermostat::setTempReader(uint8_t pTempReaderPin)
+void ZLFP10Thermostat::setTempPins(uint8_t pRoomTempPin, uint8_t pCoilTempPin)
 {
-  FCUController.setTempReader(pTempReaderPin);
+  FCUController.setRoomTempPin(pRoomTempPin);
+  FCUController.setCoilTempPin(pCoilTempPin);
 }
-void ZLFP10Thermostat::setSerial(SoftwareSerial &pswSerial, uint8_t pRS485DEPin,uint8_t pRS485REPin)
+void ZLFP10Thermostat::setSerial(HardwareSerial &pswSerial, uint8_t pRS485DEPin,uint8_t pRS485REPin)
 {
-  FCUController.setSerial(pswSerial,  pRS485DEPin,  pRS485REPin);
+  FCUController.setHardwareSerial(pswSerial,  pRS485DEPin,  pRS485REPin);
 }
 
 void ZLFP10Thermostat::setup() 
@@ -32,16 +34,11 @@ void ZLFP10Thermostat::setup()
 
     
   
-    setThermostatInterval(0.1);
+    setThermostatInterval(0.2);
     setDefaultStage(2);
     MultiStageThermostat::setup();
     DebugStream->println("done starting");
-    int x; 
-    for(x=0; x<STATUSPINCOUNT; x++)
-    {
-      pinMode(STATUSBASEPIN+x, OUTPUT );
-    }
-
+    EnableDehumidify();
 }
 
 
@@ -71,10 +68,13 @@ void ZLFP10Thermostat::DisplayStatus() {
     DebugStream->print(", Temp=");
     DebugStream->print(getTemp(), 1);
     
-    DebugStream->print(", Humidity=");
+    DebugStream->print(", Hum=");
     DebugStream->print(getHumidity(), 0);
+        DebugStream->print(", DP=");
+    DebugStream->print(DewPoint(getTemp(),getHumidity()), 0);
+
     // thermostat properties
-    DebugStream->print(", Setpoint:");
+    DebugStream->print(", Setpt:");
     DebugStream->print(FCUSetTemp );
     DebugStream->print(", Stage=");
     DebugStream->print(getLastStage());
@@ -132,9 +132,9 @@ void ZLFP10Thermostat::RestartSession()
      
     setSettings(settings);
     setStageDelays(MAXFANSPEED+1, Delays);
-    BlinkEm(2, 100);
-    SetStatus(2);
-    FCUController.Calibrate(Mode==MODE_HEAT, FCUSetTemp);
+    theLEDStatusStrip.BlinkEm(2, 100);
+    theLEDStatusStrip.SetStatus(2);
+    FCUController.Calibrate();
 
     // for unknown reasons, when the FCU is powered off and on it comes up with an E0 error. This detects that error and attempts to clear it
     // by soft-powering off and on
@@ -148,9 +148,18 @@ void ZLFP10Thermostat::RestartSession()
 
       }
     }
- 
+    DehuSettings dhs;
+    dhs.bottomTempLimit=1.0;
+	dhs.bottomTempRange=0.2;
+	dhs.HumidityLimit=55;
+	dhs.HumidityRange=5;
+
+  SetParameters(&dhs);
 }
 
+int oldStage=-1;
+short oldCoil=-1;
+    
 
 void ZLFP10Thermostat::loop() 
 
@@ -162,7 +171,6 @@ void ZLFP10Thermostat::loop()
     float oldtemp = getTemp();
     delay(1000);
     ReadTemp();
-    
     
     unsigned long now = millis();
     float temp=getTemp();
@@ -178,27 +186,34 @@ void ZLFP10Thermostat::loop()
             // if on/off, mode or setpoint has changed since last iteration, reset everything
             if(oldOnOff!=Onoff || oldMode!=Mode ||  oldSetTemp!= FCUSetTemp)
             {
+              DebugStream->println("Restarting session");
+              DebugStream->print("Onoff=");
+              DebugStream->print(Onoff);
+              DebugStream->print(" Mode=");
+              DebugStream->print(Mode);
+              DebugStream->print(" FCUSetTemp=");
+              DebugStream->print(FCUSetTemp);
+              DebugStream->println();
               RestartSession();
             }
 
-            int oldStage=getLastStage();
             int newStage=getStage();
+
             if(oldStage!=newStage || nextcheck==0)// first time in
             {
-              int targetTemp;
-              if(Mode==MODE_HEAT)
-              {
-                  targetTemp=FCUSetTemp-newStage;
-              }
-              else
-              {
-                  targetTemp=FCUSetTemp+newStage;
-              }
               DebugStream->println();
-              FCUController.SetFanSpeed(newStage, targetTemp);
-              SetStatus(newStage);
+              FCUController.SetFanSpeed(newStage);
+              theLEDStatusStrip.SetStatus(newStage);
             }
-
+              oldStage=newStage;
+              if(newStage==4)
+              {
+                if(FCUController.FCUSettings.coilTemp != oldCoil)
+                {
+                  DebugStream->println();
+                }
+              }
+            oldCoil=FCUController.FCUSettings.coilTemp;
             nextcheck = now +10000; // don't check for 60 seconds unless the temperature chnages
         }
         DisplayStatus();
@@ -217,8 +232,9 @@ void ZLFP10Thermostat::ReadFCUSettings()
     
     if(FCUController.FCUSettings.Mode== FCU_MODE_AUTO) // auto temp mode, compare setpoints against actual temp
     {
-      
-      if(getTemp() > FCUController.FCUSettings.AutoCoolingSetpoint) // cooling set point
+      Mode=MODE_COOL;
+      FCUSetTemp = FCUController.FCUSettings.CoolSetpoint;
+      /*if(getTemp() > FCUController.FCUSettings.AutoCoolingSetpoint) // cooling set point
       {
         Mode=MODE_COOL;
       }
@@ -236,7 +252,7 @@ void ZLFP10Thermostat::ReadFCUSettings()
       {
         FCUSetTemp= FCUController.FCUSettings.AutoHeatingSetpoint;
       }
-
+      */
     }
     else
     {
@@ -264,54 +280,3 @@ void ZLFP10Thermostat::SetDebugOutput(Stream * pDebug)
   DebugStream=pDebug;
   FCUController.SetDebugOutput(pDebug);
 };
-
-void ZLFP10Thermostat::SetStatus(int newStatus)
-{
-  int x;
-
-  for(x=0; x<STATUSPINCOUNT; x++)
-  {
-    if(newStatus > x)
-    {
-      digitalWrite(STATUSBASEPIN+x, HIGH);
-    }
-    else
-    {
-      digitalWrite(STATUSBASEPIN+x, LOW);
-    }
-  }
-  oldStatus=newStatus;
-};
-void ZLFP10Thermostat::Warning(int WarningLevel)
-{
-  BlinkEm(WarningLevel, LONG_BLINK);
-  delay(1000);
-  SetStatus(oldStatus);
-};
-void ZLFP10Thermostat::FatalError(int ErrorLevel)
-{
-  while(1)
-  {
-    BlinkEm(ErrorLevel, SHORT_BLINK);
-    delay(3000);
-  }
-
-};
-void ZLFP10Thermostat::BlinkEm(int number, unsigned long duration)
-{
- int x;
- int y;
- for(y=0; y< number; y++)
- {
-  for(x=0; x<STATUSPINCOUNT; x++)
-  {
-      digitalWrite(STATUSBASEPIN+x, HIGH);
-  }
-  delay(duration);
-  for(x=0; x<STATUSPINCOUNT; x++)
-  {
-      digitalWrite(STATUSBASEPIN+x, LOW);
-  }
- }
-   
-}

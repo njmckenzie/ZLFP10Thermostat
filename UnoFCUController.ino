@@ -1,4 +1,4 @@
-#include <MultiStageThermostat.h>
+
 
 
 
@@ -22,17 +22,20 @@ LCDStream lcdDebug;
 
 #endif  
 
+#define SERIAL1_DE_PIN 2
+#define ROOM_TEMP_PIN 3
+#define SW_SERIAL_TX_PIN 4
+#define SW_SERIAL_DE 5
+#define SW_SERIAL_RX_PIN 6
+#define DHT_SENSOR_PIN 7
+#define STATUSBASEPIN 8
+#define STATUSPINCOUNT 4 // pins are 8 through 11
+#define COIL_TEMP_PIN 12
 
 
-#define RS485_RX_PIN 12  // this goes to RD pin on 485
-#define RS485_TX_PIN 10  // this goes to DI pin on 485 
-#define DHT_SENSOR_PIN 8
-#define RS485_RE_PIN 11
-#define RS485_DE_PIN 11
-#define TEMP_READER_PIN 6
 
 ZLFP10Thermostat theThermostat(DHT_SENSOR_PIN);
-SoftwareSerial SoftSerial(RS485_RX_PIN, RS485_TX_PIN);
+
 
 struct NullStream : public Stream{
   NullStream( void ) { return; };
@@ -45,9 +48,9 @@ struct NullStream : public Stream{
 
 NullStream DebugNull;
 void setup() {
-  theThermostat.setTempReader(TEMP_READER_PIN);
+  theThermostat.setTempPins(ROOM_TEMP_PIN, COIL_TEMP_PIN);
   DebugSetup();
-  theThermostat.setSerial(SoftSerial,RS485_DE_PIN, RS485_RE_PIN );
+  theThermostat.setSerial(Serial1,SERIAL1_DE_PIN, SERIAL1_DE_PIN );
   
   
   theThermostat.setup();
@@ -95,16 +98,3 @@ void loop()
    #endif
    
 }
-
-    void  SetStatus(int newStatus)
-    {
-        theThermostat.SetStatus(newStatus);
-    };
-    void  Warning(int WarningLevel)
-    {
-        theThermostat.Warning(WarningLevel);
-    };
-    void FatalError(int ErrorLevel)
-    {
-      theThermostat.FatalError(ErrorLevel);
-    };
