@@ -112,7 +112,7 @@ void ZLFP10Thermostat::DisplayStatus() {
     
     
     DebugStream->print("   " );
-    DebugStream->print('\r');
+    DebugStream->println('\r');
 }
 int Delays[]=
 {
