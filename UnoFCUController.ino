@@ -4,7 +4,7 @@
 
 
 #include "ZLFP10Thermostat.h"
-#include "DebugFramework.h"
+#include <DebugFramework.h>
 #include "LEDStatusStrip.h"
 
 //#define DEBUGOUTPUTDEVICE_LCD
@@ -35,8 +35,8 @@ LCDStream lcdDebug;
 #define STATUSBASEPIN 8
 #define STATUSPINCOUNT 4 // pins are 8 through 11
 #define COIL_TEMP_PIN 12
-#define CLIENT_MODBUS_ID 18
-#define SERVER_MODBUS_ID 98
+#define CLIENT_MODBUS_ID 17
+#define SERVER_MODBUS_ID 97
 #define ENABLE_LEDS false
 
 SoftwareSerial SoftSerial(SW_SERIAL_RX_PIN, SW_SERIAL_TX_PIN);

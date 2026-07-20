@@ -5,7 +5,7 @@
 #include <Stream.h>
 
 // Include the full debug framework definition
-#include "DebugFramework.h"
+#include <DebugFramework.h>
 
 // Debug levels
 #define DEBUG_LEVEL_NONE    0

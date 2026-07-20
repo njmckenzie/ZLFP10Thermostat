@@ -1,0 +1,608 @@
+# Loads default set of integrations. Do not remove.
+default_config:
+
+# Load frontend themes from the themes folder
+frontend:
+  themes: !include_dir_merge_named themes
+
+automation: !include automations.yaml
+
+script: !include scripts.yaml
+
+scene: !include scenes.yaml
+
+modbus:
+  - name: FCU_Dining_Room
+    type: serial
+    port: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_A10LJQC4-if00-port0
+    baudrate: 9600
+    bytesize: 8
+    method: rtu
+    parity: N
+    stopbits: 1
+    timeout: 5
+    delay: 10
+    close_comm_on_error: true
+    retries: 3
+    retry_on_empty: true
+
+    climates:
+      - name: Basement FCU
+        slave: 95
+        address: 39321
+        input_type: input
+        temperature_unit: C
+        temp_step: 1.8
+        scale: .1
+        precision: 1
+        scan_interval: 5
+
+        target_temp_write_registers: true
+        target_temp_register:
+          - 28312   # AUTO
+          - 28312   # COOL
+          - 28312   # DRY
+          - 28312   # FAN_ONLY
+          - 28313   # HEAT
+          - 28312   # HEAT_COOL
+          - 28312   # OFF
+        hvac_mode_register:
+          address: 28302
+          write_registers: true
+          values:
+            state_auto: 0
+            state_cool: 1
+            state_dry: 2
+            state_fan_only: 3
+            state_heat: 4
+        fan_mode_register:
+          address: [28303]
+          values:
+            state_fan_low: 2
+            state_fan_medium: 3
+            state_fan_high: 4
+            state_fan_auto: 6
+
+        hvac_onoff_register: 28301
+        write_registers: true
+
+      - name: Dining Room FCU
+        slave: 96
+        address: 39321
+        input_type: input
+        temperature_unit: C
+        temp_step: 1.8
+        scale: .1
+        precision: 1
+        scan_interval: 7
+
+        target_temp_write_registers: true
+        target_temp_register:
+          - 28312   # AUTO
+          - 28312   # COOL
+          - 28312   # DRY
+          - 28312   # FAN_ONLY
+          - 28313   # HEAT
+          - 28312   # HEAT_COOL
+          - 28312   # OFF
+        hvac_mode_register:
+          address: 28302
+          write_registers: true
+          values:
+            state_auto: 0
+            state_cool: 1
+            state_dry: 2
+            state_fan_only: 3
+            state_heat: 4
+        fan_mode_register:
+          address: [28303]
+          values:
+            state_fan_low: 2
+            state_fan_medium: 3
+            state_fan_high: 4
+            state_fan_auto: 6
+
+        hvac_onoff_register: 28301
+        write_registers: true
+
+      - name: Living Room FCU
+        slave: 97
+        address: 39321
+        input_type: input
+        temperature_unit: C
+        temp_step: 1.8
+        scale: .1
+        precision: 1
+        scan_interval: 9
+
+        target_temp_write_registers: true
+        target_temp_register:
+          - 28312   # AUTO
+          - 28312   # COOL
+          - 28312   # DRY
+          - 28312   # FAN_ONLY
+          - 28313   # HEAT
+          - 28312   # HEAT_COOL
+          - 28312   # OFF
+        hvac_mode_register:
+          address: 28302
+          write_registers: true
+          values:
+            state_auto: 0
+            state_cool: 1
+            state_dry: 2
+            state_fan_only: 3
+            state_heat: 4
+        fan_mode_register:
+          address: [28303]
+          values:
+            state_fan_low: 2
+            state_fan_medium: 3
+            state_fan_high: 4
+            state_fan_auto: 6
+
+        hvac_onoff_register: 28301
+        write_registers: true
+
+      - name: Entryway FCU
+        slave: 98
+        address: 39321
+        input_type: input
+        temperature_unit: C
+        temp_step: 1.8
+        scale: .1
+        precision: 1
+        scan_interval: 11
+
+        target_temp_write_registers: true
+        target_temp_register:
+          - 28312   # AUTO
+          - 28312   # COOL
+          - 28312   # DRY
+          - 28312   # FAN_ONLY
+          - 28313   # HEAT
+          - 28312   # HEAT_COOL
+          - 28312   # OFF
+        hvac_mode_register:
+          address: 28302
+          write_registers: true
+          values:
+            state_auto: 0
+            state_cool: 1
+            state_dry: 2
+            state_fan_only: 3
+            state_heat: 4
+        fan_mode_register:
+          address: [28303]
+          values:
+            state_fan_low: 2
+            state_fan_medium: 3
+            state_fan_high: 4
+            state_fan_auto: 6
+
+        hvac_onoff_register: 28301
+        write_registers: true
+
+    sensors:
+      - name: Basement FCU Fan RPM
+        slave: 95
+        address: 46804
+        input_type: input
+        unit_of_measurement: "RPM"
+        data_type: int16
+        scale: 1
+        precision: 0
+        scan_interval: 30
+
+      - name: Dining Room FCU Fan RPM
+        slave: 96
+        address: 46804
+        input_type: input
+        unit_of_measurement: "RPM"
+        data_type: int16
+        scale: 1
+        precision: 0
+        scan_interval: 30
+
+      - name: Living Room FCU Fan RPM
+        slave: 97
+        address: 46804
+        input_type: input
+        unit_of_measurement: "RPM"
+        data_type: int16
+        scale: 1
+        precision: 0
+        scan_interval: 30
+
+      - name: Entryway FCU Fan RPM
+        slave: 98
+        address: 46804
+        input_type: input
+        unit_of_measurement: "RPM"
+        data_type: int16
+        scale: 1
+        precision: 0
+        scan_interval: 30
+
+      - name: Basement FCU Humidity
+        slave: 95
+        address: 39322
+        input_type: input
+        unit_of_measurement: "%"
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        scan_interval: 60
+
+      - name: Dining Room FCU Humidity
+        slave: 96
+        address: 39322
+        input_type: input
+        unit_of_measurement: "%"
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        scan_interval: 60
+
+      - name: Living Room FCU Humidity
+        slave: 97
+        address: 39322
+        input_type: input
+        unit_of_measurement: "%"
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        scan_interval: 60
+
+      - name: Entryway FCU Humidity
+        slave: 98
+        address: 39322
+        input_type: input
+        unit_of_measurement: "%"
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        scan_interval: 60
+
+      - name: Basement FCU Dewpoint
+        slave: 95
+        address: 39323
+        input_type: input
+        unit_of_measurement: "°C"
+        device_class: temperature
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        scan_interval: 60
+
+      - name: Dining Room FCU Dewpoint
+        slave: 96
+        address: 39323
+        input_type: input
+        unit_of_measurement: "°C"
+        device_class: temperature
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        scan_interval: 60
+
+      - name: Living Room FCU Dewpoint
+        slave: 97
+        address: 39323
+        input_type: input
+        unit_of_measurement: "°C"
+        device_class: temperature
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        scan_interval: 60
+
+      - name: Entryway FCU Dewpoint
+        slave: 98
+        address: 39323
+        input_type: input
+        unit_of_measurement: "°C"
+        device_class: temperature
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        scan_interval: 60
+
+      - name: Basement FCU Coil Temperature
+        slave: 95
+        address: 46802
+        input_type: input
+        unit_of_measurement: "°C"
+        device_class: temperature
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        scan_interval: 30
+
+      - name: Dining Room FCU Coil Temperature
+        slave: 96
+        address: 46802
+        input_type: input
+        unit_of_measurement: "°C"
+        device_class: temperature
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        scan_interval: 30
+
+      - name: Living Room FCU Coil Temperature
+        slave: 97
+        address: 46802
+        input_type: input
+        unit_of_measurement: "°C"
+        device_class: temperature
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        scan_interval: 30
+
+      - name: Entryway FCU Coil Temperature
+        slave: 98
+        address: 46802
+        input_type: input
+        unit_of_measurement: "°C"
+        device_class: temperature
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        scan_interval: 30
+
+      - name: Basement FCU Valve Status
+        slave: 95
+        address: 46805
+        input_type: input
+        data_type: int16
+        scale: 1
+        precision: 0
+        scan_interval: 60
+
+      - name: Dining Room FCU Valve Status
+        slave: 96
+        address: 46805
+        input_type: input
+        data_type: int16
+        scale: 1
+        precision: 0
+        scan_interval: 60
+
+      - name: Living Room FCU Valve Status
+        slave: 97
+        address: 46805
+        input_type: input
+        data_type: int16
+        scale: 1
+        precision: 0
+        scan_interval: 60
+
+      - name: Entryway FCU Valve Status
+        slave: 98
+        address: 46805
+        input_type: input
+        data_type: int16
+        scale: 1
+        precision: 0
+        scan_interval: 60
+
+  - name: CX34_Heat_Pump
+    type: serial
+    port: /dev/serial/by-id/usb-1a86_USB_Serial-if00-port0
+    baudrate: 9600
+    bytesize: 8
+    method: rtu
+    parity: N
+    stopbits: 1
+    timeout: 5
+    delay: 10
+    close_comm_on_error: true
+    retries: 3
+    retry_on_empty: true
+
+    sensors:
+      - name: CX34 On Off Status
+        slave: 1
+        address: 140
+        input_type: holding
+        data_type: int16
+        scale: 1
+        precision: 0
+        scan_interval: 10
+
+      - name: CX34 Operating Mode
+        slave: 1
+        address: 141
+        input_type: holding
+        data_type: int16
+        scale: 1
+        precision: 0
+        scan_interval: 10
+
+      - name: CX34 Outside Temperature
+        slave: 1
+        address: 202
+        input_type: holding
+        unit_of_measurement: "°C"
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        scan_interval: 30
+
+      - name: CX34 Supply Water Temperature
+        slave: 1
+        address: 205
+        input_type: holding
+        unit_of_measurement: "°C"
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        scan_interval: 10
+
+      - name: CX34 Return Water Temperature
+        slave: 1
+        address: 281
+        input_type: holding
+        unit_of_measurement: "°C"
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        scan_interval: 10
+
+      - name: CX34 Current Fault Code
+        slave: 1
+        address: 284
+        input_type: holding
+        data_type: int16
+        scale: 1
+        precision: 0
+        scan_interval: 10
+
+      - name: CX34 Pump Speed
+        slave: 1
+        address: 248
+        input_type: holding
+        unit_of_measurement: "%"
+        data_type: int16
+        scale: 10
+        precision: 0
+        scan_interval: 10
+
+      - name: CX34 Water Flow Rate
+        slave: 1
+        address: 213
+        input_type: holding
+        unit_of_measurement: "L/min"
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        scan_interval: 10
+
+      - name: CX34 Input AC Voltage
+        slave: 1
+        address: 255
+        input_type: holding
+        unit_of_measurement: "V"
+        device_class: voltage
+        data_type: int16
+        scale: 1
+        precision: 0
+        scan_interval: 10
+
+      # C56 — often 0 unless IPM reports it; keep for comparison
+      - name: CX34 Input AC Current
+        slave: 1
+        address: 256
+        input_type: holding
+        unit_of_measurement: "A"
+        device_class: current
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        scan_interval: 10
+
+      # C09 — compressor current (usually the live operating value)
+      - name: CX34 Compressor Current
+        slave: 1
+        address: 209
+        input_type: holding
+        unit_of_measurement: "A"
+        device_class: current
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        scan_interval: 10
+
+      # C57 — compressor phase current (backup)
+      - name: CX34 Compressor Phase Current
+        slave: 1
+        address: 257
+        input_type: holding
+        unit_of_measurement: "A"
+        device_class: current
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        scan_interval: 10
+
+      # C27 — confirms compressor is actually running
+      - name: CX34 Compressor Frequency
+        slave: 1
+        address: 227
+        input_type: holding
+        unit_of_measurement: "Hz"
+        data_type: int16
+        scale: 1
+        precision: 0
+        scan_interval: 10
+
+      - name: CX34 Cooling Setpoint
+        slave: 1
+        address: 142
+        input_type: holding
+        unit_of_measurement: "°C"
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        scan_interval: 30
+
+      - name: CX34 Heating Setpoint
+        slave: 1
+        address: 143
+        input_type: holding
+        unit_of_measurement: "°C"
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        scan_interval: 30
+
+# Derived CX34 power / COP sensors
+# Thermal kW = flow(L/min) * |ΔT| * 0.0697   (water Cp≈4.186 kJ/kg·K)
+# Electrical kW = V * A / 1000                 (apparent power; no PF available)
+# COP = thermal_kW / electrical_kW
+#
+# If these entities do not appear after restart, check Developer Tools → States
+# for the exact Modbus entity IDs (they must match the states() names below).
+template:
+  - sensor:
+      - name: CX34 Thermal Power
+        unique_id: cx34_thermal_power
+        unit_of_measurement: kW
+        device_class: power
+        state_class: measurement
+        state: >
+          {% set flow = states('sensor.cx34_water_flow_rate') | float(0) %}
+          {% set supply = states('sensor.cx34_supply_water_temperature') | float(0) %}
+          {% set ret = states('sensor.cx34_return_water_temperature') | float(0) %}
+          {{ (flow * (supply - ret) | abs * 0.0697) | round(2) }}
+
+      - name: CX34 Electrical Power
+        unique_id: cx34_electrical_power
+        unit_of_measurement: kW
+        device_class: power
+        state_class: measurement
+        state: >
+          {% set volts = states('sensor.cx34_input_ac_voltage') | float(0) %}
+          {% set input_a = states('sensor.cx34_input_ac_current') | float(0) %}
+          {% set comp_a = states('sensor.cx34_compressor_current') | float(0) %}
+          {% set phase_a = states('sensor.cx34_compressor_phase_current') | float(0) %}
+          {% set amps = [input_a, comp_a, phase_a] | max %}
+          {{ (volts * amps / 1000) | round(2) }}
+
+      - name: CX34 COP
+        unique_id: cx34_cop
+        unit_of_measurement: COP
+        state_class: measurement
+        state: >
+          {% set thermal = states('sensor.cx34_thermal_power') | float(0) %}
+          {% set electrical = states('sensor.cx34_electrical_power') | float(0) %}
+          {{ (thermal / electrical) | round(2) }}
+        availability: >
+          {{ states('sensor.cx34_thermal_power') not in ['unavailable', 'unknown']
+             and states('sensor.cx34_electrical_power') not in ['unavailable', 'unknown']
+             and states('sensor.cx34_electrical_power') | float(0) > 0.1 }}
+
+logger:
+  default: warning

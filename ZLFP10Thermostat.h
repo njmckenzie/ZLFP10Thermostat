@@ -10,9 +10,11 @@ class ZLFP10Thermostat: public DehumidifyingMultiStageThermostat
 
   Settings settings;
   
-  ZLFP10Controller FCUController;
+public:
+  ZLFP10Controller FCUController;  // Made public to allow ModbusServer to update setpoints
   
-    unsigned long nextcheck = 0;   // track the last time we read settings and status from the unit, do it every minute
+private:
+    unsigned long nextcheck = 0;   // track the last time we read settings from the FCU
 
     
     
@@ -37,6 +39,7 @@ public:
     
     void SetDebugOutput(Stream * pDebug); // set the device for debug output
     void DoServerAction(); // called when the server needs something from the FCU
+    void notifySetpointWrite(bool isCooling, short setpointValue); // apply HA setpoint immediately
     
     // Getter methods for FCU settings
     word getFCUOnOffStatus();
@@ -48,10 +51,13 @@ public:
     int getCoilTempFault();
     float getHumidity();
     float getActualHumidity(); // For register 39322
+    float getDewPoint();
     
     // Missing getter methods for FCU holding registers
     word getCoolSetpoint();
     word getHeatSetpoint();
+    word getCoolSetpointAuto();
+    word getHeatSetpointAuto();
     
     // Missing getter methods for FCU input registers
     word getFCURoomTemp();

@@ -3,6 +3,7 @@
 
 #include "ZLFP10ModbusServer.h"
 #include "ZLFP10Thermostat.h"
+#include "DebugLibrary.h"
 
 void ZLFP10ModbusServer::RequestReaction()
 {
@@ -67,12 +68,20 @@ void ZLFP10ModbusServer::readHoldingRegisters()
         value = ((ZLFP10Thermostat*)pParentThermostat)->getFCUFanSpeedStatus();
         break;
         
+      case 28310: // FCU Cooling Setpoint
+        value = ((ZLFP10Thermostat*)pParentThermostat)->getCoolSetpoint() * 10;
+        break;
+        
+      case 28311: // FCU Heating Setpoint
+        value = ((ZLFP10Thermostat*)pParentThermostat)->getHeatSetpoint() * 10;
+        break;
+        
       case 28312: // FCU Cooling Setpoint
-        value = ((ZLFP10Thermostat*)pParentThermostat)->getCoolSetpoint();
+        value = ((ZLFP10Thermostat*)pParentThermostat)->getCoolSetpointAuto() * 10;
         break;
         
       case 28313: // FCU Heating Setpoint
-        value = ((ZLFP10Thermostat*)pParentThermostat)->getHeatSetpoint();
+        value = ((ZLFP10Thermostat*)pParentThermostat)->getHeatSetpointAuto() * 10;
         break;
         
       default:
@@ -109,6 +118,11 @@ void  ZLFP10ModbusServer::readInputRegisters()
   word Count;
   Register=ResponseBufferGetAt(0);
   Count= ResponseBufferGetAt(1);
+
+  // Refresh live FCU status when HA polls input registers in the 468xx range
+  if (Count > 0 && Register <= 46810U && (Register + Count - 1) >= 46801U) {
+    ((ZLFP10Thermostat*)pParentThermostat)->FCUController.ReadInputStatus();
+  }
   
   // Small delay to ensure request is fully received
   delay(0);
@@ -133,15 +147,19 @@ void  ZLFP10ModbusServer::readInputRegisters()
             break;
             
           case 39322: // Actual humidity (Arduino sensor)
-            value = ((ZLFP10Thermostat*)pParentThermostat)->getActualHumidity();
+            value = ((ZLFP10Thermostat*)pParentThermostat)->getActualHumidity() * 10;
             break;
             
+          case 39323: // Actual humidity (Arduino sensor)
+            value = ((ZLFP10Thermostat*)pParentThermostat)->getDewPoint() * 10;
+            break;
+
           case 46801: // FCU room temperature
-            value = ((ZLFP10Thermostat*)pParentThermostat)->getFCURoomTemp();
+            value = ((ZLFP10Thermostat*)pParentThermostat)->getFCURoomTemp() * 10;
             break;
             
           case 46802: // FCU coil temperature
-            value = ((ZLFP10Thermostat*)pParentThermostat)->getCoilTemp();
+            value = ((ZLFP10Thermostat*)pParentThermostat)->getCoilTemp() * 10;
             break;
             
           case 46803: // FCU fan setting
@@ -157,11 +175,11 @@ void  ZLFP10ModbusServer::readInputRegisters()
             break;
             
           case 46806: // Reserved/Unused register
-            value = 0;
+            value = 9999;
             break;
             
           case 46807: // Reserved/Unused register
-            value = 0;
+            value = 9999;
             break;
             
           case 46808: // FCU fan fault
@@ -183,7 +201,7 @@ void  ZLFP10ModbusServer::readInputRegisters()
         
     TransmitBufferPutAt(i, value);
   }
-   
+
   // Add delay to prevent frame overlap and ensure stable communication
   delay(0);
 
@@ -227,14 +245,46 @@ void  ZLFP10ModbusServer::writeMultipleRegisters()
   Serial.print(" Count: ");
   Serial.print(Count);
   
+  ZLFP10Thermostat* pThermostat = (ZLFP10Thermostat*)pParentThermostat;
+  bool skipForward = false;
+  
   // Data starts at index 2
   for (int i = 0; i < Count; i++) {
     uint16_t value = ResponseBufferGetAt(2 + i);
+    uint16_t currentRegister = Register + i;
+    
     Serial.print(" Register ");
-    Serial.print(Register + i);
+    Serial.print(currentRegister);
     Serial.print(" Value: 0x");
     Serial.println(value, HEX);
-    pClient->TransmitBufferPutAt(i, value);
+    
+    // Intercept setpoint writes to update internal state and FCU holding registers.
+    // Proxy addresses 28310-28313 are offset from native FCU addresses; writes must
+    // target the actual FCU indices (cool: 7+9, heat: 8+10), not be forwarded as-is.
+    if (currentRegister == 28312) {
+      short setpointValue = value / 10;
+      pThermostat->FCUController.SetHoldingRegister(7, value);
+      pThermostat->FCUController.FCUSettings.CoolSetpoint = setpointValue;
+      pThermostat->FCUController.SetHoldingRegister(9, value);
+      pThermostat->FCUController.FCUSettings.CoolSetpointAuto = setpointValue;
+      DEBUG_INFO_INT(DEBUG_MODULE_MODBUS, "Updating CoolSetpointAuto (both registers 7 and 9)", setpointValue);
+      pThermostat->notifySetpointWrite(true, setpointValue);
+      skipForward = true;
+    }
+    else if (currentRegister == 28313) {
+      short setpointValue = value / 10;
+      pThermostat->FCUController.SetHoldingRegister(8, value);
+      pThermostat->FCUController.FCUSettings.HeatSetpoint = setpointValue;
+      pThermostat->FCUController.SetHoldingRegister(10, value);
+      pThermostat->FCUController.FCUSettings.HeatSetpointAuto = setpointValue;
+      DEBUG_INFO_INT(DEBUG_MODULE_MODBUS, "Updating HeatSetpointAuto (both registers 8 and 10)", setpointValue);
+      pThermostat->notifySetpointWrite(false, setpointValue);
+      skipForward = true;
+    }
+    else {
+      // Other registers - forward normally
+      pClient->TransmitBufferPutAt(i, value);
+    }
   }
 
   // Debug: Print what ModbusFrame actually parsed
@@ -245,8 +295,37 @@ void  ZLFP10ModbusServer::writeMultipleRegisters()
   Serial.print("DEBUG: Count: ");
   Serial.println(Count);
 
-  // Forward the command to the FCU
-  pClient->writeMultipleRegisters(Register, Count);
+  // Forward the command to the FCU unless it was a single intercepted setpoint write
+  if (!skipForward || Count > 1) {
+    // Rebuild transmit buffer excluding intercepted setpoint registers
+    int forwardIndex = 0;
+    uint16_t forwardRegister = Register;
+    bool firstSkipped = false;
+    
+    for (int i = 0; i < Count; i++) {
+      uint16_t currentRegister = Register + i;
+      if (currentRegister != 28312 && currentRegister != 28313) {
+        uint16_t value = ResponseBufferGetAt(2 + i);
+        pClient->TransmitBufferPutAt(forwardIndex, value);
+        if (forwardIndex == 0 && i > 0) {
+          // Adjust starting register if we skipped earlier registers
+          forwardRegister = currentRegister;
+        }
+        forwardIndex++;
+      } else if (i == 0) {
+        firstSkipped = true;
+      }
+    }
+    
+    if (forwardIndex > 0) {
+      if (firstSkipped) {
+        // Need to adjust register number for forwarding
+        pClient->writeMultipleRegisters(forwardRegister, forwardIndex);
+      } else {
+        pClient->writeMultipleRegisters(Register, forwardIndex);
+      }
+    }
+  }
 
   Serial.println("DEBUG: FCU command sent");
 

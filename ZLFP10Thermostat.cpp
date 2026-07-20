@@ -7,6 +7,8 @@
 #include "DewPoint.h"
 #define STATUSPINCOUNT 4
 #define STATUSBASEPIN 8
+#define LOOP_DELAY_MS 200
+#define FCU_SETTINGS_POLL_MS 5000
 
 
 
@@ -56,26 +58,41 @@ void ZLFP10Thermostat::setup()
 void ZLFP10Thermostat::DisplayStatus() {
     // Use the debug framework for status display
     DEBUG_INFO(DEBUG_MODULE_THERMOSTAT, "Status update");
-    DEBUG_INFO_INT(DEBUG_MODULE_THERMOSTAT, "On/Off", Onoff);
-    DEBUG_INFO_INT(DEBUG_MODULE_THERMOSTAT, "Mode", Mode);
-    DEBUG_INFO_INT(DEBUG_MODULE_THERMOSTAT, "Fan Mode Setting", FCUController.FCUSettings.FanModeSetting);
-    DEBUG_INFO_FLOAT(DEBUG_MODULE_THERMOSTAT, "Temperature", getTemp());
-    DEBUG_INFO_FLOAT(DEBUG_MODULE_THERMOSTAT, "Humidity", getHumidity());
-    DEBUG_INFO_FLOAT(DEBUG_MODULE_THERMOSTAT, "Dew point", DewPoint(getTemp(), getHumidity()));
-    DEBUG_INFO_INT(DEBUG_MODULE_THERMOSTAT, "Setpoint", FCUSetTemp);
-    DEBUG_INFO_INT(DEBUG_MODULE_THERMOSTAT, "Stage", getLastStage());
-    DEBUG_INFO_FLOAT(DEBUG_MODULE_THERMOSTAT, "Upper threshold", upperthreshold);
-    DEBUG_INFO_FLOAT(DEBUG_MODULE_THERMOSTAT, "Lower threshold", lowerthreshold);
-    DEBUG_INFO_INT(DEBUG_MODULE_THERMOSTAT, "Next check", (nextAdjustmentTime > millis()) ? (nextAdjustmentTime-millis())/1000 : 0);
     
-    // FCU properties
-    DEBUG_INFO_INT(DEBUG_MODULE_FCU, "Temp pin", FCUController.lastTempPin);
-    DEBUG_INFO_FLOAT(DEBUG_MODULE_FCU, "Reported room temp", FCUController.FCUSettings.RoomTemp);
-    DEBUG_INFO_INT(DEBUG_MODULE_FCU, "Fan RPM", FCUController.FCUSettings.FanRPM);
-    DEBUG_INFO_INT(DEBUG_MODULE_FCU, "Fan setting", FCUController.FCUSettings.FanSetting);
-    DEBUG_INFO_FLOAT(DEBUG_MODULE_FCU, "Coil temperature", FCUController.FCUSettings.coilTemp);
-    DEBUG_INFO_INT(DEBUG_MODULE_FCU, "Valve open", FCUController.FCUSettings.valveOpen);
-    DEBUG_INFO_INT(DEBUG_MODULE_FCU, "Fan fault", FCUController.FCUSettings.FanFault);
+    // Thermostat integer properties
+    const char* thermIntNames[] = {"On/Off", "Mode", "Fan Mode Setting", "Setpoint", "Stage", "Next check"};
+    DEBUG_INFO_NAMED(DEBUG_MODULE_THERMOSTAT, "FCU Settings (1)", 6, thermIntNames,
+        Onoff,
+        Mode,
+        FCUController.FCUSettings.FanModeSetting,
+        FCUSetTemp,
+        getLastStage(),
+        (nextAdjustmentTime > millis()) ? (nextAdjustmentTime-millis())/1000 : 0);
+    
+    // Thermostat float properties
+    const char* thermFloatNames[] = {"Real room Temp", "Humidity", "Dew point", "Upper threshold", "Lower threshold"};
+    DEBUG_INFO_NAMED_FLOAT(DEBUG_MODULE_THERMOSTAT, "FCU Settings (2)", 5, thermFloatNames,
+        getTemp(), // Actual temperature value
+        getHumidity(), // Actual humidity value
+        DewPoint(getTemp(), getHumidity()), // Actual dew point value
+        upperthreshold, // Actual upper threshold value
+        lowerthreshold); // Actual lower threshold value
+    
+    // FCU properties - integer values
+    const char* fcuIntNames[] = {"Temp pin", "Fan RPM", "Fan setting", "Valve open", "Fan fault"};
+    DEBUG_INFO_NAMED(DEBUG_MODULE_FCU, "FCU Settings (3)", 5, fcuIntNames,
+        FCUController.lastTempPin,
+        FCUController.FCUSettings.FanRPM,
+        FCUController.FCUSettings.FanSetting,
+        FCUController.FCUSettings.valveOpen,
+        FCUController.FCUSettings.FanFault);
+    
+    // FCU properties - float values
+    const char* fcuFloatNames[] = {"FCU room temp", "Coil temp"};
+    // Cast to float to ensure proper va_arg handling in infoNamedFloat
+    DEBUG_INFO_NAMED_FLOAT(DEBUG_MODULE_FCU, "FCU Settings (4)", 2, fcuFloatNames,
+        (float)FCUController.FCUSettings.RoomTemp, // Actual room temperature value
+        (float)FCUController.FCUSettings.coilTemp); // Actual coil temperature value
 }
 int Delays[]=
 {
@@ -99,7 +116,13 @@ void ZLFP10Thermostat::RestartSession()
     setStageDelays(MAXFANSPEED+1, Delays);
     theLEDStatusStrip.BlinkEm(2, 100);
     theLEDStatusStrip.SetStatus(2);
-    FCUController.Calibrate();
+    
+    // Check if calibration is needed for the current mode
+    if(FCUController.NeedsCalibration(Mode)) {
+        FCUController.Calibrate();
+    } else {
+        FCUController.LoadCalibrationData();
+    }
 
     // for unknown reasons, when the FCU is powered off and on it comes up with an E0 error. This detects that error and attempts to clear it
     // by soft-powering off and on
@@ -126,15 +149,31 @@ int oldStage=-1;
 short oldCoil=-1;
     
 
-void ZLFP10Thermostat::loop() 
-
+void ZLFP10Thermostat::notifySetpointWrite(bool isCooling, short setpointValue)
 {
+    FCUSetTemp = setpointValue;
+    Mode = isCooling ? MODE_COOL : MODE_HEAT;
 
+    DEBUG_INFO(DEBUG_MODULE_THERMOSTAT, "Setpoint write from Modbus - applying immediately");
+    DEBUG_INFO_INT(DEBUG_MODULE_THERMOSTAT, "FCU Set Temp", FCUSetTemp);
 
-    // once a second read temp, 
-    // once a minute, and on change in temp, read settings
+    Settings newSettings = {Mode, FCUSetTemp, FCUSetTemp, 0};
+    setSettings(newSettings);
+
+    int newStage = getStage();
+    FCUController.SetFanSpeed(newStage);
+    theLEDStatusStrip.SetStatus(newStage);
+    oldStage = newStage;
+    nextcheck = 0;
+}
+
+void ZLFP10Thermostat::loop() 
+{
+    // Service HA Modbus requests first so writes are not blocked by FCU polling
+    FCUController.ServiceAnyRequests();
+
     float oldtemp = getTemp();
-    delay(1000);
+    delay(LOOP_DELAY_MS);
     ReadTemp();
     
     unsigned long now = millis();
@@ -148,14 +187,28 @@ void ZLFP10Thermostat::loop()
 
     
             ReadFCUSettings();
-            // if on/off, mode or setpoint has changed since last iteration, reset everything
-            if(oldOnOff!=Onoff || oldMode!=Mode ||  oldSetTemp!= FCUSetTemp)
+            // Only restart session (and recalibrate) when mode changes
+            // On/Off and setpoint changes no longer trigger recalibration
+            if(oldMode!=Mode)
             {
-              DEBUG_INFO(DEBUG_MODULE_THERMOSTAT, "Restarting session");
-              DEBUG_INFO_INT(DEBUG_MODULE_THERMOSTAT, "On/Off", Onoff);
-              DEBUG_INFO_INT(DEBUG_MODULE_THERMOSTAT, "Mode", Mode);
-              DEBUG_INFO_INT(DEBUG_MODULE_THERMOSTAT, "FCU Set Temp", FCUSetTemp);
+              DEBUG_INFO(DEBUG_MODULE_THERMOSTAT, "Mode changed - restarting session");
+              DEBUG_INFO_INT(DEBUG_MODULE_THERMOSTAT, "Old Mode", oldMode);
+              DEBUG_INFO_INT(DEBUG_MODULE_THERMOSTAT, "New Mode", Mode);
               RestartSession();
+            }
+            else if(oldOnOff!=Onoff || oldSetTemp!= FCUSetTemp)
+            {
+              // For on/off and setpoint changes, just update settings without recalibration
+              DEBUG_INFO(DEBUG_MODULE_THERMOSTAT, "Settings changed - updating without recalibration");
+              DEBUG_INFO_INT(DEBUG_MODULE_THERMOSTAT, "On/Off", Onoff);
+              DEBUG_INFO_INT(DEBUG_MODULE_THERMOSTAT, "FCU Set Temp", FCUSetTemp);
+              
+              // Update thermostat settings to reset thresholds for new setpoint
+              Settings newSettings = {Mode, FCUSetTemp, FCUSetTemp, 0}; // mode, heat, cool, hum
+              setSettings(newSettings);
+              
+              // Force SetFanSpeed call to update PWM for new setpoint
+              nextcheck = 0; // This will force SetFanSpeed to be called below
             }
 
             int newStage=getStage();
@@ -175,15 +228,9 @@ void ZLFP10Thermostat::loop()
                 }
               }
             oldCoil=FCUController.FCUSettings.coilTemp;
-            nextcheck = now +10000; // don't check for 60 seconds unless the temperature chnages
+            nextcheck = now + FCU_SETTINGS_POLL_MS;
         }
         DisplayStatus();
-        
-    // check the server side    
-    FCUController.ServiceAnyRequests();
-   
-
-
 }
 
 void ZLFP10Thermostat::ReadFCUSettings()
@@ -195,26 +242,8 @@ void ZLFP10Thermostat::ReadFCUSettings()
     if(FCUController.FCUSettings.Mode== FCU_MODE_AUTO) // auto temp mode, compare setpoints against actual temp
     {
       Mode=MODE_COOL;
-      FCUSetTemp = FCUController.FCUSettings.CoolSetpoint;
-      /*if(getTemp() > FCUController.FCUSettings.AutoCoolingSetpoint) // cooling set point
-      {
-        Mode=MODE_COOL;
-      }
-      if(getTemp() < FCUController.FCUSettings.AutoHeatingSetpoint) // heating set point
-      {
-        Mode=MODE_HEAT;
-      }
+      FCUSetTemp = FCUController.FCUSettings.CoolSetpointAuto;
 
-      // have to break this out because setpoint could change outside of mode change
-      if(Mode== MODE_HEAT)
-      {
-        FCUSetTemp=FCUController.FCUSettings.AutoHeatingSetpoint;
-      }
-      if(Mode== MODE_COOL)
-      {
-        FCUSetTemp= FCUController.FCUSettings.AutoHeatingSetpoint;
-      }
-      */
     }
     else
     {
@@ -223,12 +252,12 @@ void ZLFP10Thermostat::ReadFCUSettings()
       FCUSetTemp=0;
       if(FCUMode==FCU_MODE_HEAT)
       {
-        FCUSetTemp = FCUController.FCUSettings.HeatSetpoint;
+        FCUSetTemp = FCUController.FCUSettings.HeatSetpointAuto;
         Mode=MODE_HEAT;
       }
       if(FCUMode==FCU_MODE_COOL)
       {
-        FCUSetTemp = FCUController.FCUSettings.CoolSetpoint;
+        FCUSetTemp = FCUController.FCUSettings.CoolSetpointAuto;
         Mode=MODE_COOL;
       }
   }
@@ -270,8 +299,13 @@ float ZLFP10Thermostat::getHumidity() {
 }
 
 float ZLFP10Thermostat::getActualHumidity() {
-    return lastHum * 10; // Return humidity * 10 for register 39322 (similar to getActualRoomTemp)
+    return lastHum; // Return humidity * 10 for register 39322 (similar to getActualRoomTemp)
 }
+
+float ZLFP10Thermostat::getDewPoint() {
+  return (DewPoint(getTemp(), getHumidity()));
+}
+
 
 // Missing getter methods for FCU holding registers
 word ZLFP10Thermostat::getCoolSetpoint() {
@@ -282,13 +316,25 @@ word ZLFP10Thermostat::getHeatSetpoint() {
     return FCUController.FCUSettings.HeatSetpoint;
 }
 
+word ZLFP10Thermostat::getCoolSetpointAuto() {
+  return FCUController.FCUSettings.CoolSetpointAuto;
+}
+
+word ZLFP10Thermostat::getHeatSetpointAuto() {
+  return FCUController.FCUSettings.HeatSetpointAuto;
+}
+
 // Missing getter methods for FCU input registers
 word ZLFP10Thermostat::getFCURoomTemp() {
-    return FCUController.FCUSettings.RoomTemp;
+    // RoomTemp is stored as short (signed), convert to word for Modbus
+    // Values are already divided by 10 in ReadSettings, so we return as-is
+    return (word)((short)FCUController.FCUSettings.RoomTemp);
 }
 
 word ZLFP10Thermostat::getCoilTemp() {
-    return FCUController.FCUSettings.coilTemp;
+    // coilTemp is stored as short (signed), convert to word for Modbus
+    // Values are already divided by 10 in ReadSettings, so we return as-is
+    return (word)((short)FCUController.FCUSettings.coilTemp);
 }
 
 word ZLFP10Thermostat::getFanSetting() {
