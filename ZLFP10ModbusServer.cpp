@@ -83,6 +83,22 @@ void ZLFP10ModbusServer::readHoldingRegisters()
       case 28313: // FCU Heating Setpoint
         value = ((ZLFP10Thermostat*)pParentThermostat)->getHeatSetpointAuto() * 10;
         break;
+
+      case 28314: // FCU Auto cooling setpoint (native reg 11, used in AUTO mode)
+        value = ((ZLFP10Thermostat*)pParentThermostat)->getAutoCoolingSetpoint() * 10;
+        break;
+
+      case 28315: // FCU Auto heating setpoint (native reg 12)
+        value = ((ZLFP10Thermostat*)pParentThermostat)->getAutoHeatingSetpoint() * 10;
+        break;
+
+      case 28316: // Thermostat fan stage (0-4)
+        value = ((ZLFP10Thermostat*)pParentThermostat)->getThermostatStage();
+        break;
+
+      case 28317: // Last PWM spoof target temperature from SetFanSpeed
+        value = ((ZLFP10Thermostat*)pParentThermostat)->getLastPwmTargetTemp() * 10;
+        break;
         
       default:
         value = 9999;
@@ -262,22 +278,28 @@ void  ZLFP10ModbusServer::writeMultipleRegisters()
     // Proxy addresses 28310-28313 are offset from native FCU addresses; writes must
     // target the actual FCU indices (cool: 7+9, heat: 8+10), not be forwarded as-is.
     if (currentRegister == 28312) {
+      // Cool setpoint: sync COOL regs (7, 9) and AUTO-mode cool reg (11)
       short setpointValue = value / 10;
       pThermostat->FCUController.SetHoldingRegister(7, value);
       pThermostat->FCUController.FCUSettings.CoolSetpoint = setpointValue;
       pThermostat->FCUController.SetHoldingRegister(9, value);
       pThermostat->FCUController.FCUSettings.CoolSetpointAuto = setpointValue;
-      DEBUG_INFO_INT(DEBUG_MODULE_MODBUS, "Updating CoolSetpointAuto (both registers 7 and 9)", setpointValue);
+      pThermostat->FCUController.SetHoldingRegister(11, value);
+      pThermostat->FCUController.FCUSettings.AutoCoolingSetpoint = setpointValue;
+      DEBUG_INFO_INT(DEBUG_MODULE_MODBUS, "Updating cool setpoints (regs 7, 9, 11)", setpointValue);
       pThermostat->notifySetpointWrite(true, setpointValue);
       skipForward = true;
     }
     else if (currentRegister == 28313) {
+      // Heat setpoint: sync HEAT regs (8, 10) and AUTO-mode heat reg (12)
       short setpointValue = value / 10;
       pThermostat->FCUController.SetHoldingRegister(8, value);
       pThermostat->FCUController.FCUSettings.HeatSetpoint = setpointValue;
       pThermostat->FCUController.SetHoldingRegister(10, value);
       pThermostat->FCUController.FCUSettings.HeatSetpointAuto = setpointValue;
-      DEBUG_INFO_INT(DEBUG_MODULE_MODBUS, "Updating HeatSetpointAuto (both registers 8 and 10)", setpointValue);
+      pThermostat->FCUController.SetHoldingRegister(12, value);
+      pThermostat->FCUController.FCUSettings.AutoHeatingSetpoint = setpointValue;
+      DEBUG_INFO_INT(DEBUG_MODULE_MODBUS, "Updating heat setpoints (regs 8, 10, 12)", setpointValue);
       pThermostat->notifySetpointWrite(false, setpointValue);
       skipForward = true;
     }

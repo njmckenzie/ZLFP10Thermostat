@@ -93,6 +93,25 @@ void ZLFP10Thermostat::DisplayStatus() {
     DEBUG_INFO_NAMED_FLOAT(DEBUG_MODULE_FCU, "FCU Settings (4)", 2, fcuFloatNames,
         (float)FCUController.FCUSettings.RoomTemp, // Actual room temperature value
         (float)FCUController.FCUSettings.coilTemp); // Actual coil temperature value
+
+    const char* setpointNames[] = {"CoolSetpoint", "CoolSetpointAuto", "AutoCoolingSetpoint", "HeatSetpointAuto", "PWM target", "FCU mode"};
+    DEBUG_INFO_NAMED(DEBUG_MODULE_THERMOSTAT, "Setpoint diagnostic", 6, setpointNames,
+        FCUController.FCUSettings.CoolSetpoint,
+        FCUController.FCUSettings.CoolSetpointAuto,
+        FCUController.FCUSettings.AutoCoolingSetpoint,
+        FCUController.FCUSettings.HeatSetpointAuto,
+        FCUController.lastPwmTargetTemp,
+        FCUController.FCUSettings.Mode);
+
+    // Idle vs dehumidify decision path
+    const char* idleNames[] = {"Onoff", "Valve", "HumidityPct", "Stage", "PWM target", "FCU mode"};
+    DEBUG_INFO_NAMED(DEBUG_MODULE_THERMOSTAT, "Idle/dehu diagnostic", 6, idleNames,
+        FCUController.FCUSettings.Onoff,
+        FCUController.FCUSettings.valveOpen,
+        (int)getHumidity(),
+        getLastStage(),
+        FCUController.lastPwmTargetTemp,
+        FCUController.FCUSettings.Mode);
 }
 int Delays[]=
 {
@@ -136,6 +155,8 @@ void ZLFP10Thermostat::RestartSession()
 
       }
     }
+    // Dehumidify: enter stage 1 when RH > HumidityLimit+HumidityRange (60%);
+    // sticky keeps stage 1 until RH <= HumidityLimit (55%).
     DehuSettings dhs;
     dhs.bottomTempLimit=1.0;
 	dhs.bottomTempRange=0.2;
@@ -162,6 +183,7 @@ void ZLFP10Thermostat::notifySetpointWrite(bool isCooling, short setpointValue)
 
     int newStage = getStage();
     FCUController.SetFanSpeed(newStage);
+    Onoff = FCUController.FCUSettings.Onoff;
     theLEDStatusStrip.SetStatus(newStage);
     oldStage = newStage;
     nextcheck = 0;
@@ -217,7 +239,11 @@ void ZLFP10Thermostat::loop()
             {
               DebugStream->println();
               FCUController.SetFanSpeed(newStage);
+              Onoff = FCUController.FCUSettings.Onoff;
               theLEDStatusStrip.SetStatus(newStage);
+              if (oldStage != newStage && (oldStage == 0 || newStage == 0 || oldStage == 1 || newStage == 1)) {
+                logStageSetpointDiagnostic(newStage);
+              }
             }
               oldStage=newStage;
               if(newStage==4)
@@ -231,6 +257,27 @@ void ZLFP10Thermostat::loop()
             nextcheck = now + FCU_SETTINGS_POLL_MS;
         }
         DisplayStatus();
+}
+
+void ZLFP10Thermostat::logStageSetpointDiagnostic(int stage)
+{
+    DEBUG_INFO_INT(DEBUG_MODULE_THERMOSTAT, "Stage transition diagnostic - stage", stage);
+    const char* setpointNames[] = {"CoolSetpoint", "CoolSetpointAuto", "AutoCoolingSetpoint", "HeatSetpointAuto", "PWM target", "FCU mode"};
+    DEBUG_INFO_NAMED(DEBUG_MODULE_THERMOSTAT, "Stage transition setpoints", 6, setpointNames,
+        FCUController.FCUSettings.CoolSetpoint,
+        FCUController.FCUSettings.CoolSetpointAuto,
+        FCUController.FCUSettings.AutoCoolingSetpoint,
+        FCUController.FCUSettings.HeatSetpointAuto,
+        FCUController.lastPwmTargetTemp,
+        FCUController.FCUSettings.Mode);
+    const char* idleNames[] = {"Onoff", "Valve", "HumidityPct", "Stage", "PWM target", "FCU mode"};
+    DEBUG_INFO_NAMED(DEBUG_MODULE_THERMOSTAT, "Idle/dehu transition", 6, idleNames,
+        FCUController.FCUSettings.Onoff,
+        FCUController.FCUSettings.valveOpen,
+        (int)getHumidity(),
+        stage,
+        FCUController.lastPwmTargetTemp,
+        FCUController.FCUSettings.Mode);
 }
 
 void ZLFP10Thermostat::ReadFCUSettings()
@@ -322,6 +369,22 @@ word ZLFP10Thermostat::getCoolSetpointAuto() {
 
 word ZLFP10Thermostat::getHeatSetpointAuto() {
   return FCUController.FCUSettings.HeatSetpointAuto;
+}
+
+word ZLFP10Thermostat::getAutoCoolingSetpoint() {
+  return FCUController.FCUSettings.AutoCoolingSetpoint;
+}
+
+word ZLFP10Thermostat::getAutoHeatingSetpoint() {
+  return FCUController.FCUSettings.AutoHeatingSetpoint;
+}
+
+word ZLFP10Thermostat::getThermostatStage() {
+  return getLastStage();
+}
+
+word ZLFP10Thermostat::getLastPwmTargetTemp() {
+  return FCUController.lastPwmTargetTemp;
 }
 
 // Missing getter methods for FCU input registers

@@ -308,6 +308,131 @@ modbus:
         precision: 1
         scan_interval: 60
 
+      # Setpoint diagnostics — compare AutoCoolingSetpoint (28314) to climate target (28312)
+      - name: Basement FCU Auto Cooling Setpoint
+        slave: 95
+        address: 28314
+        input_type: holding
+        unit_of_measurement: "°C"
+        device_class: temperature
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        scan_interval: 60
+
+      - name: Basement FCU Thermostat Stage
+        slave: 95
+        address: 28316
+        input_type: holding
+        data_type: int16
+        scale: 1
+        precision: 0
+        scan_interval: 60
+
+      - name: Basement FCU PWM Target Temp
+        slave: 95
+        address: 28317
+        input_type: holding
+        unit_of_measurement: "°C"
+        device_class: temperature
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        scan_interval: 60
+
+      - name: Dining Room FCU Auto Cooling Setpoint
+        slave: 96
+        address: 28314
+        input_type: holding
+        unit_of_measurement: "°C"
+        device_class: temperature
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        scan_interval: 60
+
+      - name: Dining Room FCU Thermostat Stage
+        slave: 96
+        address: 28316
+        input_type: holding
+        data_type: int16
+        scale: 1
+        precision: 0
+        scan_interval: 60
+
+      - name: Dining Room FCU PWM Target Temp
+        slave: 96
+        address: 28317
+        input_type: holding
+        unit_of_measurement: "°C"
+        device_class: temperature
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        scan_interval: 60
+
+      - name: Living Room FCU Auto Cooling Setpoint
+        slave: 97
+        address: 28314
+        input_type: holding
+        unit_of_measurement: "°C"
+        device_class: temperature
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        scan_interval: 60
+
+      - name: Living Room FCU Thermostat Stage
+        slave: 97
+        address: 28316
+        input_type: holding
+        data_type: int16
+        scale: 1
+        precision: 0
+        scan_interval: 60
+
+      - name: Living Room FCU PWM Target Temp
+        slave: 97
+        address: 28317
+        input_type: holding
+        unit_of_measurement: "°C"
+        device_class: temperature
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        scan_interval: 60
+
+      - name: Entryway FCU Auto Cooling Setpoint
+        slave: 98
+        address: 28314
+        input_type: holding
+        unit_of_measurement: "°C"
+        device_class: temperature
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        scan_interval: 60
+
+      - name: Entryway FCU Thermostat Stage
+        slave: 98
+        address: 28316
+        input_type: holding
+        data_type: int16
+        scale: 1
+        precision: 0
+        scan_interval: 60
+
+      - name: Entryway FCU PWM Target Temp
+        slave: 98
+        address: 28317
+        input_type: holding
+        unit_of_measurement: "°C"
+        device_class: temperature
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        scan_interval: 60
+
       - name: Basement FCU Coil Temperature
         slave: 95
         address: 46802

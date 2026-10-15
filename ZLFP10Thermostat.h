@@ -27,6 +27,7 @@ private:
     Stream *DebugStream; // used for debug output, can be serial, LCD, or none
     void RestartSession(); // called when the mode or setpoint changes
     void ReadFCUSettings(); // Get info from the FCUController
+    void logStageSetpointDiagnostic(int stage);
 
 public:
     ZLFP10Thermostat(uint8_t pDHTSensorPin);
@@ -58,6 +59,10 @@ public:
     word getHeatSetpoint();
     word getCoolSetpointAuto();
     word getHeatSetpointAuto();
+    word getAutoCoolingSetpoint();
+    word getAutoHeatingSetpoint();
+    word getThermostatStage();
+    word getLastPwmTargetTemp();
     
     // Missing getter methods for FCU input registers
     word getFCURoomTemp();
